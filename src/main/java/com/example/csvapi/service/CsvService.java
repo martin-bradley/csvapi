@@ -1,5 +1,6 @@
 package com.example.csvapi.service;
 
+import com.example.csvapi.util.CoordinateConverter;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -18,6 +19,8 @@ public class CsvService {
             BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()));
 
             String line;
+            boolean isFirstLine = true;
+            List<String> headers = new ArrayList<>();
             while ((line = reader.readLine()) != null) {
                 // Split line by comma, handling quoted values
                 String[] values = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
@@ -28,9 +31,36 @@ public class CsvService {
                     cleanedValues.add(value.trim().replaceAll("^\"|\"$", ""));
                 }
 
+                // Store headers separately
+                if (isFirstLine) {
+                    headers = cleanedValues;
+                    headers.add("Latitude");  // Add header for latitude
+                    headers.add("Longitude"); // Add header for longitude
+                    isFirstLine = false;
+                    continue;
+                }
+
+                // Convert GeoX and GeoY to latitude and longitude
+                if (!cleanedValues.isEmpty() && !cleanedValues.get(4).isEmpty() && !cleanedValues.get(5).isEmpty()) {
+                    try {
+                        double geoX = Double.parseDouble(cleanedValues.get(4));
+                        double geoY = Double.parseDouble(cleanedValues.get(5));
+                        double[] latLong = CoordinateConverter.convertOSGB36ToWGS84(geoX, geoY);
+                        cleanedValues.add(String.valueOf(latLong[0])); // Add latitude
+                        cleanedValues.add(String.valueOf(latLong[1])); // Add longitude
+                    } catch (NumberFormatException e) {
+                        e.printStackTrace();
+                    }
+                }
+
                 records.add(cleanedValues);
             }
             reader.close();
+
+            // Add headers back to the records
+            if (!headers.isEmpty()) {
+                records.add(0, headers);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
